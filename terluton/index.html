@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terluton</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%235cf2ff'/%3E%3Cellipse cx='16' cy='16' rx='14' ry='4' fill='none' stroke='%235cf2ff' stroke-width='1.5' transform='rotate(-20 16 16)'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">{ "imports": { "three": "./lib/three.module.js" } }</script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div id="labels"></div>
+  <div id="edge-arrow"><span></span><em></em></div>
+
+  <div id="hud" class="hidden">
+    <div id="reticle"><i></i><i></i><i></i><i></i></div>
+
+    <header id="brand" class="panel">
+      <div class="logo">TERLUTON</div>
+      <div class="sub">Référentiel local&nbsp;: <b id="ref-name">Terre</b></div>
+      <div class="sub" id="ap-status"></div>
+      <div class="credit">Pensé par Corentin ROBIN, réalisé par Claude.</div>
+    </header>
+
+    <section id="clocks" class="panel">
+      <div class="clock">
+        <h3>Horloge terrestre</h3>
+        <div class="date" id="earth-date">—</div>
+        <div class="time" id="earth-time">—</div>
+      </div>
+      <div class="clock ship">
+        <h3>Horloge de bord</h3>
+        <div class="date" id="ship-date">—</div>
+        <div class="time" id="ship-time">—</div>
+      </div>
+      <div class="drift">
+        <span>Écart bord − Terre</span>
+        <b id="drift">0 s</b>
+      </div>
+      <div class="rates">
+        <span>1 s terrestre = <b id="rate">1 s</b> à bord</span>
+        <span>γ <b id="gamma">1,000</b></span>
+        <span title="Potentiel gravitationnel au vaisseau / c²">Φ/c² <b id="grav">0</b></span>
+      </div>
+    </section>
+
+    <section id="target" class="panel">
+      <h3>Cible</h3>
+      <div class="t-name" id="t-name">—</div>
+      <div class="t-type" id="t-type"></div>
+      <dl>
+        <dt>Distance</dt><dd id="t-dist">—</dd>
+        <dt>Lumière</dt><dd id="t-light">—</dd>
+        <dt>Rayon</dt><dd id="t-radius">—</dd>
+        <dt>Arrivée (Terre)</dt><dd id="t-eta">—</dd>
+        <dt>Arrivée (bord)</dt><dd id="t-eta-ship">—</dd>
+      </dl>
+      <p id="t-info"></p>
+      <div class="row">
+        <button id="btn-align" title="Orienter le vaisseau vers la cible (F)">Pointer <kbd>F</kbd></button>
+        <button id="btn-auto" class="primary" title="Pilote automatique vers la cible (G)">Pilote auto <kbd>G</kbd></button>
+      </div>
+    </section>
+
+    <aside id="nav" class="panel">
+      <h3>Navigation <button id="nav-toggle" title="Replier">–</button></h3>
+      <div id="nav-list"></div>
+    </aside>
+
+    <section id="speed" class="panel">
+      <h3>Vitesse <span id="frame-hint">/ Terre</span></h3>
+      <div class="big"><span id="spd-val">0</span><small id="spd-unit">km/s</small></div>
+      <div class="beta-bar"><div id="beta-fill"></div><div class="ticks"><i style="left:0">0</i><i style="left:50%">0,5c</i><i style="left:90%">0,9c</i><i style="left:100%">c</i></div></div>
+      <div class="line"><span>β</span><b id="spd-beta">0</b><span>Consigne</span><b id="spd-target">0</b></div>
+      <input id="throttle" type="range" min="0" max="20" step="1" value="0" aria-label="Consigne de vitesse">
+      <div class="presets" id="presets"></div>
+    </section>
+
+    <section id="time" class="panel">
+      <h3>Écoulement du temps</h3>
+      <div class="warp" id="warp"></div>
+    </section>
+
+    <section id="actions" class="panel">
+      <button id="btn-view" title="Vue cockpit / extérieure (V)">Vue <kbd>V</kbd></button>
+      <button id="btn-orbits" class="on" title="Orbites (O)">Orbites <kbd>O</kbd></button>
+      <button id="btn-labels" class="on" title="Étiquettes (L)">Étiquettes <kbd>L</kbd></button>
+      <button id="btn-music" class="on" title="Musique (M)">Musique <kbd>M</kbd></button>
+      <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="Volume">
+      <button id="btn-help" title="Aide (H)">Aide <kbd>H</kbd></button>
+    </section>
+
+    <div id="toast"></div>
+
+    <div id="help" class="overlay hidden">
+      <div class="panel help-box">
+        <h2>Commandes de vol</h2>
+        <div class="help-grid">
+          <div><kbd data-code="KeyW">Z</kbd> / <kbd data-code="KeyS">S</kbd> ou molette</div><div>Augmenter / réduire la consigne de vitesse</div>
+          <div><kbd>Espace</kbd></div><div>Arrêt complet (dans le référentiel local)</div>
+          <div>Souris (glisser) ou <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></div><div>Orienter le vaisseau (lacet / tangage)</div>
+          <div><kbd data-code="KeyQ">A</kbd> / <kbd data-code="KeyE">E</kbd></div><div>Roulis</div>
+          <div><kbd>Tab</kbd> / <kbd>Maj</kbd>+<kbd>Tab</kbd></div><div>Cible suivante / précédente (ou cliquer une étiquette)</div>
+          <div><kbd>F</kbd></div><div>Pointer vers la cible</div>
+          <div><kbd>G</kbd> ou <kbd>Entrée</kbd></div><div>Pilote automatique vers la cible</div>
+          <div><kbd>1</kbd> … <kbd>8</kbd></div><div>Accélération du temps (×1 à ×10⁷)</div>
+          <div><kbd>P</kbd></div><div>Pause</div>
+          <div><kbd>V</kbd> · <kbd>O</kbd> · <kbd>L</kbd> · <kbd>M</kbd></div><div>Vue · Orbites · Étiquettes · Musique</div>
+        </div>
+        <h2>Relativité</h2>
+        <p>Les deux horloges partent synchronisées. L’horloge de bord avance au rythme
+          <b>dτ/dt = √(1 − v²/c²) · (1 + Φ/c²)</b>, où <i>v</i> est la vitesse du vaisseau dans le référentiel du barycentre
+          solaire et Φ le potentiel gravitationnel de tous les corps. L’horloge terrestre suit la même loi, à la surface de la
+          Terre (géoïde) et à sa vitesse orbitale. Même immobile, le vaisseau gagne ainsi environ 60 µs par jour sur la Terre,
+          car il est moins enfoncé dans son puits gravitationnel (l’effet corrigé par les satellites GPS).</p>
+        <p>À vitesse relativiste, observez les étoiles&nbsp;: l’<b>aberration</b> les concentre vers l’avant, et l’<b>effet
+          Doppler</b> les bleuit devant vous et les rougit derrière vous.</p>
+        <p class="muted">Pour rester jouable, le vol est « aligné » : le vaisseau avance dans la direction où il pointe, et
+          l’accélération est instantanée. Les vitesses affichées sont relatives au référentiel local (corps le plus proche).</p>
+        <p class="muted small">Textures : NASA 3D Resources (domaine public) et Solar System Scope (CC BY 4.0).
+          Les zones non photographiées et les petits corps sont complétés par des textures procédurales.</p>
+        <button id="help-close" class="primary">Reprendre le vol</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="intro">
+    <div class="intro-inner">
+      <div class="orbit-logo"><span></span><span></span><span></span></div>
+      <h1>TERLUTON</h1>
+      <p class="tag">Simulateur de vol relativiste dans le système solaire</p>
+      <div class="progress"><div id="progress-fill"></div></div>
+      <p id="progress-text">Initialisation…</p>
+      <button id="start" class="primary" disabled>Démarrer la mission</button>
+      <p class="muted small">Casque recommandé · Musique générative · Positions planétaires calculées pour la date réelle</p>
+      <p class="credit">Pensé par Corentin ROBIN, réalisé par Claude.</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
